@@ -19,6 +19,7 @@ my $build = Module::Build->new(
         'Log::Minimal' => 0,
         'URI::Escape' => 0,
         'File::Path' => 2,
+        'Email::Sender' => 0,
     },
 
     no_index    => { 'directory' => [ 'inc' ] },

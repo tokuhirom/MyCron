@@ -12,15 +12,21 @@ use File::Spec;
 use URI::Escape;
 use Time::Piece;
 use File::Path 2 qw(make_path);
-use Email::Send;
 use Fcntl ':seek';
+use Email::Simple;
+use Email::Simple::Creator;
+use Email::Sender;
+use Email::Sender::Simple qw(sendmail);
 
 STDOUT->autoflush(1);
 
+my $mailto;
+
 GetOptions(
+    'm|mailto=s' => \$mailto,
     'c|config=s' => \my $fname,
     'd|logdir=s' => \my $logdir,
-);
+) or pod2usage();
 
 make_path($logdir);
 
@@ -32,7 +38,7 @@ my $w = AE::signal HUP => sub {
     reload_config();
 };
 my $wchld = AE::signal CHLD => sub {
-    infof("finished: $?");
+    infof("finished: $?, %s", @_);
 };
 
 my %watching;
@@ -65,6 +71,9 @@ sub load_config {
                 # $line->name
                 # $line->value
                 $env{$line->name} = $line->value;
+                if ($line->name eq 'MAILTO') {
+                    $mailto = $line->value;
+                }
             } elsif ($line->isa('Config::Crontab::Event') && $line->active) {
                 infof("Registering %s, %s", $line->datetime, $line->command);
                 $cron->add(
@@ -77,7 +86,7 @@ sub load_config {
 }
 
 sub run_event {
-    my $command = shift;
+    my $command = shift or die "run_event(command)";
 
     infof("[$command] spawning");
 
@@ -135,14 +144,16 @@ sub run_event {
                     $_log->("command exited with code:" . ($status >> 8) ."\n");
                 }
 
-                # print log to stdout
-                open my $fh, '<', $logfname
-                    or die "failed to open $logfname:$!";
-                seek $fh, $logpos, SEEK_SET
-                    or die "failed to seek to the appropriate position in logfile:$!";
-                my $err = do { local $/; <$fh> };
-                send_error_mail($err);
-                close $fh;
+                if ($status != 0) {
+                    # print log to stdout
+                    open my $fh, '<', $logfname
+                        or die "failed to open $logfname:$!";
+                    seek $fh, $logpos, SEEK_SET
+                        or die "failed to seek to the appropriate position in logfile:$!";
+                    my $err = do { local $/; <$fh> };
+                    send_error_mail($command, $err);
+                    close $fh;
+                }
             });
         }
     };
@@ -161,8 +172,25 @@ sub critical_error {
 }
 
 sub send_error_mail {
+    my ($command, $body) = @_;
     # TODO: send mail
-    debugf(@_);
+
+    if ($mailto) {
+        infof("[$command] Sending e-mail $mailto");
+        my $email = Email::Simple->create(
+            header => [
+                To      => $mailto,
+                Subject => "'$command' failed",
+                From => "$ENV{USER}\@$ENV{HOSTNAME}",
+            ],
+            body       => $body,
+            attributes => {
+                content_type => 'text/plain',
+                charset      => 'utf-8',
+            },
+        );
+        Email::Sender::Simple->send($email, {from => "$ENV{USER}\@$ENV{HOSTNAME}"});
+    }
 }
 
 sub reload_config {
