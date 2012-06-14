@@ -1,0 +1,4 @@
+MAILTO=test@example.com
+
+* * * * * echo "HELLO"
+

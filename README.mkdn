@@ -1,0 +1,6 @@
+Yet another cron-ish server
+===========================
+
+    * run the server on upstart or supervisord or daemontools
+    * re-read configuration file by SIGHUP
+

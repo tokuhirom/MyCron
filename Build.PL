@@ -12,9 +12,13 @@ my $build = Module::Build->new(
     },
     configure_requires   => { 'Module::Build' => '0.38' },
     requires             => {
-        # 'Exporter'                      => '0',
         'parent'                        => '0',
-        # 'Plack'                         => '0.9949',
+        'Config::Crontab' => 0,
+        'AE' => 0,
+        'AnyEvent::DateTime::Cron' => 0,
+        'Log::Minimal' => 0,
+        'URI::Escape' => 0,
+        'File::Path' => 2,
     },
 
     no_index    => { 'directory' => [ 'inc' ] },
@@ -30,3 +34,4 @@ my $build = Module::Build->new(
     create_license => 1,
 );
 $build->create_build_script();
+
