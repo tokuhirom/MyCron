@@ -37,6 +37,7 @@ my $wchld = AE::signal CHLD => sub {
 
 my %watching;
 my $PPID = $$;
+my %env;
 
 &main; exit;
 
@@ -47,6 +48,7 @@ sub main {
 
     if ($ENV{MYCRON_DEBUG}) {
         run_event(q{perl -e 'die "OOPS"'});
+        run_event(q!perl -e 'die $ENV{FOO}'!);
     }
 
     $cron->start->recv;
@@ -55,11 +57,14 @@ sub main {
 sub load_config {
     my $parser = Config::Crontab->new();
     $parser->read(-file => $fname);
+
+    undef %env;
     for my $block ($parser->blocks()) {
         for my $line ($block->lines) {
             if ($line->isa('Config::Crontab::Env') && $line->active) {
                 # $line->name
                 # $line->value
+                $env{$line->name} = $line->value;
             } elsif ($line->isa('Config::Crontab::Event') && $line->active) {
                 infof("Registering %s, %s", $line->datetime, $line->command);
                 $cron->add(
@@ -99,6 +104,7 @@ sub run_event {
         };
         unless (my $pid = fork) {
             if (defined $pid) {
+                local %ENV = (%ENV, %env);
                 close $logrh;
                 close $logfh;
                 open STDERR, '>&', $logwh
@@ -150,10 +156,12 @@ sub run_event {
 }
 
 sub critical_error {
+    # TODO: send mail
     critf(@_);
 }
 
 sub send_error_mail {
+    # TODO: send mail
     debugf(@_);
 }
 
